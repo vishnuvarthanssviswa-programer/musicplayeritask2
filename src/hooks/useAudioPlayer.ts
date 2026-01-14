@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Song, playlist } from '@/data/playlist';
+import { Song, defaultPlaylist } from '@/data/playlist';
 
 export const useAudioPlayer = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [playlist, setPlaylist] = useState<Song[]>(defaultPlaylist);
   const [currentSongIndex, setCurrentSongIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -49,7 +50,7 @@ export const useAudioPlayer = () => {
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('ended', handleEnded);
     };
-  }, [currentSongIndex]);
+  }, [currentSongIndex, currentSong.audio]);
 
   useEffect(() => {
     if (audioRef.current) {
@@ -79,7 +80,7 @@ export const useAudioPlayer = () => {
       setCurrentSongIndex((prev) => (prev + 1) % playlist.length);
     }
     setIsPlaying(true);
-  }, [currentSongIndex, isShuffle]);
+  }, [currentSongIndex, isShuffle, playlist.length]);
 
   const playPrevious = useCallback(() => {
     if (audioRef.current && audioRef.current.currentTime > 3) {
@@ -88,7 +89,7 @@ export const useAudioPlayer = () => {
       setCurrentSongIndex((prev) => (prev - 1 + playlist.length) % playlist.length);
       setIsPlaying(true);
     }
-  }, []);
+  }, [playlist.length]);
 
   const seekTo = useCallback((time: number) => {
     if (audioRef.current) {
@@ -123,6 +124,73 @@ export const useAudioPlayer = () => {
     setIsRepeat(!isRepeat);
   }, [isRepeat]);
 
+  const addLocalFiles = useCallback((files: FileList) => {
+    const newSongs: Song[] = [];
+    
+    Array.from(files).forEach((file, index) => {
+      if (file.type.startsWith('audio/')) {
+        const audioUrl = URL.createObjectURL(file);
+        const fileName = file.name.replace(/\.[^/.]+$/, ''); // Remove extension
+        
+        // Try to parse artist - title format, otherwise use filename
+        const parts = fileName.split(' - ');
+        const title = parts.length > 1 ? parts[1] : fileName;
+        const artist = parts.length > 1 ? parts[0] : 'Unknown Artist';
+        
+        const newSong: Song = {
+          id: Date.now() + index,
+          title: title.trim(),
+          artist: artist.trim(),
+          album: 'Local Files',
+          duration: 0, // Will be updated when audio loads
+          cover: 'https://images.unsplash.com/photo-1618609378039-b572f64c5b42?w=400&h=400&fit=crop',
+          audio: audioUrl,
+          isLocal: true,
+        };
+        
+        // Get actual duration
+        const tempAudio = new Audio(audioUrl);
+        tempAudio.addEventListener('loadedmetadata', () => {
+          setPlaylist(prev => prev.map(s => 
+            s.id === newSong.id ? { ...s, duration: Math.floor(tempAudio.duration) } : s
+          ));
+        });
+        
+        newSongs.push(newSong);
+      }
+    });
+    
+    if (newSongs.length > 0) {
+      setPlaylist(prev => [...prev, ...newSongs]);
+    }
+    
+    return newSongs.length;
+  }, []);
+
+  const removeSong = useCallback((songId: number) => {
+    setPlaylist(prev => {
+      const index = prev.findIndex(s => s.id === songId);
+      const song = prev[index];
+      
+      // Revoke object URL if it's a local file
+      if (song?.isLocal) {
+        URL.revokeObjectURL(song.audio);
+      }
+      
+      const newPlaylist = prev.filter(s => s.id !== songId);
+      
+      // Adjust current index if needed
+      if (index < currentSongIndex) {
+        setCurrentSongIndex(curr => curr - 1);
+      } else if (index === currentSongIndex && newPlaylist.length > 0) {
+        setCurrentSongIndex(0);
+        setIsPlaying(false);
+      }
+      
+      return newPlaylist;
+    });
+  }, [currentSongIndex]);
+
   return {
     currentSong,
     currentSongIndex,
@@ -145,5 +213,7 @@ export const useAudioPlayer = () => {
     toggleAutoplay,
     toggleShuffle,
     toggleRepeat,
+    addLocalFiles,
+    removeSong,
   };
 };
