@@ -6,9 +6,10 @@ export interface Song {
   duration: number; // in seconds
   cover: string;
   audio: string;
+  isLocal?: boolean;
 }
 
-export const playlist: Song[] = [
+export const defaultPlaylist: Song[] = [
   {
     id: 1,
     title: "Midnight Dreams",

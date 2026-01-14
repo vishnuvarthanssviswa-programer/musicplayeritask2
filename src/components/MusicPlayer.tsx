@@ -29,6 +29,8 @@ const MusicPlayer = () => {
     toggleAutoplay,
     toggleShuffle,
     toggleRepeat,
+    addLocalFiles,
+    removeSong,
   } = useAudioPlayer();
 
   return (
@@ -92,6 +94,8 @@ const MusicPlayer = () => {
           onSelectSong={playSong}
           isAutoplay={isAutoplay}
           onToggleAutoplay={toggleAutoplay}
+          onAddLocalFiles={addLocalFiles}
+          onRemoveSong={removeSong}
         />
       </div>
     </div>
